@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>THE ROOMS</title>
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:dark}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;
+  background:#030404;color:#e3d5bf;font:12px monospace;
+}
+body,button,input,canvas{cursor:url("MOUSE.png") 0 0,auto}
+button,input{font:inherit}
+button{
+  color:#eee0ca;background:#29231b;border:1px solid #8a6c47;
+  padding:6px 9px;min-height:30px;
+}
+button:hover{background:#4a3827}
+button:disabled{opacity:.45}
+button:focus-visible,input:focus-visible{outline:2px solid #edc487}
+input{
+  width:90px;background:#100e0b;color:#eee0ca;
+  border:1px solid #806347;padding:6px;
+}
+#game{height:100%;display:flex;flex-direction:column}
+#top{
+  flex:0 0 28px;display:flex;align-items:center;
+  gap:8px;padding:0 8px;background:#171411;
+  border-bottom:1px solid #49382a;
+}
+#brand{letter-spacing:2px;color:#d5b187}
+#roomNo{margin-left:auto}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#status{
+  position:absolute;left:8px;top:8px;right:8px;
+  pointer-events:none;color:#ffe3b3;text-shadow:1px 2px #000;
+}
+#controls{
+  display:flex;flex-wrap:wrap;justify-content:center;
+  gap:3px;padding:4px;background:#100e0b;
+}
+#controls button{padding:5px 8px}
+.overlay{
+  position:absolute;inset:0;z-index:10;display:none;
+  align-items:center;justify-content:center;
+  padding:12px;background:#000b;
+}
+.overlay.open{display:flex}
+.panel{
+  position:relative;isolation:isolate;width:min(390px,100%);
+  max-height:100%;overflow:auto;padding:22px;
+  background:#211a13;border:1px solid #806347;
+}
+.skin{
+  position:absolute;inset:0;z-index:-1;pointer-events:none;
+  display:grid;grid-template-columns:16px minmax(0,1fr) 16px;
+  grid-template-rows:16px minmax(0,1fr) 16px;
+}
+.skin span{
+  background-size:100% 100%;
+  background-repeat:no-repeat;image-rendering:pixelated;
+}
+h1,h2{margin:0 0 10px;color:#e4bc86}
+p{line-height:1.5;margin:9px 0;color:#cab89e}
+.row{
+  display:flex;align-items:center;gap:8px;
+  border-top:1px solid #796044;padding:9px 0;
+}
+.row img{width:26px;height:26px;object-fit:contain;image-rendering:pixelated}
+.row .info{flex:1}
+small{display:block;color:#baa68b;line-height:1.4;margin-top:3px}
+.row button{white-space:nowrap}
+.options{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+#death{z-index:30;background:#100303e8;text-align:center}
+#death h1{color:#dc6652;letter-spacing:3px}
+#dev{z-index:20}
+#dev .panel{width:min(470px,100%)}
+.devrow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:8px 0}
+#devStats{white-space:pre-wrap}
+label{display:flex;align-items:center;gap:5px}
+label input{width:auto}
+@media(max-width:420px){
+  #brand{letter-spacing:1px}
+  #controls button{font-size:11px;padding:5px 6px}
+  .panel{padding:19px}
+}
+</style>
+</head>
+<body>
+<div id="game">
+  <header id="top">
+    <span id="brand">THE ROOMS</span>
+    <span id="walletTop"></span>
+    <span id="roomNo">000</span>
+  </header>
+
+  <main id="stage">
+    <canvas id="view" aria-label="The Rooms game"></canvas>
+    <div id="status" role="status"></div>
+
+    <div id="shop" class="overlay">
+      <section class="panel">
+        <h2>TRADING POST</h2>
+        <p id="wallet"></p>
+        <div id="shopItems"></div>
+        <div class="options">
+          <button id="toggleAD"></button>
+          <button id="toggleAH"></button>
+          <button id="toggleAL"></button>
+        </div>
+        <p>R or Escape to close. The game is paused.</p>
+        <button id="closeShop">Close</button>
+      </section>
+    </div>
+
+    <div id="dev" class="overlay">
+      <section class="panel">
+        <h2>DEVELOPER MODE</h2>
+        <p>Progression and encounters pause while this panel is open.</p>
+        <div class="devrow">
+          <input id="devRoom" type="number" min="0" max="999999"
+                 value="0" aria-label="Room number">
+          <button id="jumpRoom">Jump to room</button>
+        </div>
+        <div class="devrow">
+          <button id="giveCoins">+1,000 coins</button>
+          <button id="giveUpgrades">All upgrades +1</button>
+          <button id="recharge">Recharge flashlight</button>
+        </div>
+        <div class="devrow">
+          <button data-spawn="Shadow">Spawn Shadow</button>
+          <button data-spawn="Watcher">Spawn Watcher</button>
+          <button id="clearEntity">Clear entity</button>
+        </div>
+        <div class="devrow">
+          <button id="toggleDark">Toggle darkness</button>
+          <button id="spawnLoot">Add coins</button>
+        </div>
+        <div class="devrow">
+          <label><input id="godMode" type="checkbox">Invincibility</label>
+          <label><input id="encounters" type="checkbox">Random encounters</label>
+        </div>
+        <p id="devStats"></p>
+        <div class="devrow">
+          <button id="resetSave">Reset saved progress</button>
+          <button id="closeDev">Close</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="death" class="overlay">
+      <section class="panel">
+        <h1>YOU DIED</h1>
+        <p id="deathReason"></p>
+        <p id="deathRoom"></p>
+        <p>Coins and upgrades are kept.</p>
+        <p id="respawnText"></p>
+        <button id="restart">RESPAWN</button>
+      </section>
+    </div>
+  </main>
+
+  <nav id="controls" aria-label="Game controls">
+    <button data-action="forward">W · Forward</button>
+    <button data-action="loot">Q · Loot</button>
+    <button data-action="hide">E · Hide</button>
+    <button data-action="shop">R · Shop</button>
+    <button data-action="fullscreen">F · Fullscreen</button>
+  </nav>
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+const $=id=>document.getElementById(id);
+const canvas=$("view");
+const ctx=canvas.getContext("2d");
+const scene=document.createElement("canvas");
+scene.width=320;
+scene.height=180;
+const g=scene.getContext("2d");
+const W=320,H=180;
+const SAVE_KEY="roomsSaveV6Images";
+const OLD_SAVE_KEY="roomsSaveV5";
+const MAX_LEVEL=20;
+
+// ENTITY FREQUENCY SETTINGS
+const ENTITY_SETTINGS={
+  roomChance:0.80,
+  initialWaitMin:0.8,
+  initialWaitMax:1.6,
+  repeatWaitMin:8,
+  repeatWaitMax:14
+};
+
+const LAYOUT={
+  door:{x:122,y:29,w:92,h:116},
+  locker:{x:8,y:43,w:54,h:109},
+  lockerDoor:{x:8,y:43,w:54,h:109},
+  entity:{x:100,y:40,w:120,h:112},
+  painting:{x:247,y:49,w:34,h:38},
+  drawer:{x:76,y:103,w:37,h:30},
+  flashlight:{x:238,y:112,w:68,h:58}
+};
+
+const roomSets={
+  hotel:["H1.png","H2.png","H3.png"],
+  hallway:["HW1.png"],
+  backroom:["B1.png","B2.png","B3.png"],
+  stairs:["S1.png","S2.png","S3.png"],
+  archive:["A1.png","A2.png","A3.png"],
+  garden:["G1.png","G2.png","G3.png"]
+};
+
+const names={
+  hotel:"HOTEL",hallway:"HALLWAY",backroom:"BACK ROOM",
+  stairs:"STAIRWELL",archive:"ARCHIVE",garden:"GARDEN"
+};
+
+const upgradeDefs={
+  autoDoor:{
+    name:"Auto-door",base:35,icon:"AD_ICON.png",
+    description:"Automatically opens doors. More levels shorten the wait."
+  },
+  autoHide:{
+    name:"Auto-hide",base:45,icon:"AH_ICON.png",
+    description:"Reliably hides from an incoming entity. More levels react sooner."
+  },
+  autoLoot:{
+    name:"Auto-loot",base:30,icon:"AL_ICON.png",
+    description:"Collects room coins automatically. More levels collect sooner."
+  }
+};
+
+const assetNames=[
+  ...Object.values(roomSets).flat(),
+  "LOCKER.png","LOCKER_DOOR.png","MOUSE.png",
+  "ENTITY1.png","ENTITY2.png","COIN.png","BATTERY.png",
+  "FLASHLIGHT.png","FLASHLIGHT_ICON.png",
+  "PAINTING.png","PAINTING2.png","DRAWER.png",
+  "AD_ICON.png","AH_ICON.png","AL_ICON.png",
+  "DOOR_F1.png","DOOR_F2.png","DOOR_F3.png","DOOR_F4.png",
+  ...["TL","T","TR","ML","M","MR","BL","B","BR"]
+    .map(part=>"SHOPBG-"+part+".png")
+];
+
+const images={};
+for(const filename of new Set(assetNames)){
+  const image=new Image();
+  image.src=filename;
+  images[filename]=image;
+}
+
+for(const panel of document.querySelectorAll(".panel")){
+  const skin=document.createElement("div");
+  skin.className="skin";
+  skin.setAttribute("aria-hidden","true");
+  for(const part of ["TL","T","TR","ML","M","MR","BL","B","BR"]){
+    const tile=document.createElement("span");
+    tile.style.backgroundImage=`url("SHOPBG-${part}.png")`;
+    skin.append(tile);
+  }
+  panel.prepend(skin);
+}
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const randomInt=n=>Math.floor(Math.random()*n);
+const randomRange=(min,max)=>min+Math.random()*(max-min);
+const pick=a=>a[randomInt(a.length)];
+const number=(v,fallback=0)=>Number.isFinite(Number(v))?Number(v):fallback;
+const roomLabel=()=>String(room).padStart(3,"0");
+const imageReady=name=>{
+  const image=images[name];
+  return image&&image.complete&&image.naturalWidth>0;
+};
+
+let stored={};
+try{
+  stored=JSON.parse(
+    localStorage.getItem(SAVE_KEY)||
+    localStorage.getItem(OLD_SAVE_KEY)||
+    "{}"
+  )||{};
+}catch{}
+if(typeof stored!=="object"||Array.isArray(stored))stored={};
+
+let room=clamp(Math.floor(number(stored.room)),0,999999);
+let coins=clamp(Math.floor(number(stored.coins)),0,1e12);
+let upgrades={};
+let enabled={};
+for(const key of Object.keys(upgradeDefs)){
+  upgrades[key]=clamp(Math.floor(number(stored.upgrades?.[key])),0,MAX_LEVEL);
+  enabled[key]=stored.enabled?.[key]!==false;
+}
+
+let charge=clamp(number(stored.charge,100),0,100);
+let alive=true;
+let roomType="hotel",background="H1.png",dark=false;
+let painting="PAINTING.png";
+let loot=[];
+let entity=null;
+let encounterTimer=0;
+let hideState="out",hideAmount=0;
+let transition=null;
+let cooldown=.5,roomAge=0,autoDoorTimer=0;
+let messageTimer=0,deathTimer=0;
+let last=0;
+let audioCtx=null;
+let invincible=false,randomEncounters=true;
+let bracketCount=0,bracketTime=0;
+
+function save(){
+  try{
+    localStorage.setItem(SAVE_KEY,JSON.stringify({
+      room,coins,upgrades,enabled,charge
+    }));
+  }catch{}
+}
+
+function say(value,time=2.5){
+  $("status").textContent=value;
+  messageTimer=time;
+}
+
+function rect(c,x,y,w,h,color){
+  c.fillStyle=color;
+  c.fillRect(x,y,w,h);
+}
+
+function text(c,value,x,y,size=8,color="#e7d6ba"){
+  c.font=size+"px monospace";
+  c.fillStyle=color;
+  c.fillText(value,x,y);
+}
+
+function sprite(c,name,x,y,w,h,fallback="#53412e"){
+  if(imageReady(name))c.drawImage(images[name],x,y,w,h);
+  else if(fallback)rect(c,x,y,w,h,fallback);
+}
+
+function inside(p,r){
+  return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;
+}
+
+function paused(){
+  return $("shop").classList.contains("open")||
+         $("dev").classList.contains("open");
+}
+
+function activeUpgrade(key){
+  return upgrades[key]>0&&enabled[key];
+}
+
+function price(key){
+  return Math.floor(upgradeDefs[key].base*Math.pow(1.8,upgrades[key]));
+}
+
+function doorWait(){
+  return Math.max(.6,3-(upgrades.autoDoor-1)*.35);
+}
+
+function lootWait(){
+  return Math.max(.15,1.2-(upgrades.autoLoot-1)*.15);
+}
+
+function hideReaction(){
+  return Math.max(.08,1.2-(upgrades.autoHide-1)*.14);
+}
+
+function resize(){
+  const r=canvas.getBoundingClientRect();
+  const dpr=Math.min(devicePixelRatio||1,2);
+  canvas.width=Math.max(1,Math.round(r.width*dpr));
+  canvas.height=Math.max(1,Math.round(r.height*dpr));
+  ctx.imageSmoothingEnabled=false;
+}
+if(window.ResizeObserver)new ResizeObserver(resize).observe($("stage"));
+window.addEventListener("resize",resize);
+
+function resetEncounterTimer(){
+  encounterTimer=randomRange(
+    ENTITY_SETTINGS.repeatWaitMin,
+    ENTITY_SETTINGS.repeatWaitMax
+  );
+}
+
+function makeEntity(type){
+  entity={
+    type:type||pick(["Shadow","Shadow","Shadow","Watcher"]),
+    phase:"waiting",
+    timer:randomRange(
+      ENTITY_SETTINGS.initialWaitMin,
+      ENTITY_SETTINGS.initialWaitMax
+    ),
+    autoTimer:0
+  };
+  autoDoorTimer=0;
+}
+
+function enterRoom(){
+  roomType=pick(["hotel","hotel","hallway","archive","garden","stairs","backroom"]);
+  background=pick(roomSets[roomType]);
+  painting=pick(["PAINTING.png","PAINTING2.png"]);
+  dark=Math.random()<.27;
+
+  loot=[];
+  const count=Math.random()<.8?1+randomInt(3):0;
+  for(let i=0;i<count;i++){
+    loot.push({x:83+i*31+randomInt(9),y:128+randomInt(9),value:1});
+  }
+
+  entity=null;
+  resetEncounterTimer();
+
+  if(randomEncounters&&Math.random()<ENTITY_SETTINGS.roomChance){
+    makeEntity();
+  }
+
+  hideState="out";
+  hideAmount=0;
+  roomAge=0;
+  autoDoorTimer=0;
+  cooldown=.45;
+  save();
+}
+
+function openDoor(){
+  if(!alive||paused()||transition||cooldown>0||hideState!=="out")return;
+  transition={time:0,swapped:false};
+  autoDoorTimer=0;
+}
+
+function hide(){
+  if(!alive||paused()||transition)return;
+  if(hideState==="out"){
+    hideState="opening";
+    say("Opening locker...",.8);
+  }else if(hideState==="hidden"){
+    hideState="exitOpening";
+    say("Leaving locker...",.8);
+  }
+}
+
+function updateLocker(dt){
+  const speed=dt/.25;
+
+  if(hideState==="opening"){
+    hideAmount=Math.min(1,hideAmount+speed);
+    if(hideAmount>=1)hideState="enterClosing";
+  }else if(hideState==="enterClosing"){
+    hideAmount=Math.max(0,hideAmount-speed);
+    if(hideAmount<=0){
+      hideState="hidden";
+      say("Hiding. E to leave.",1.5);
+    }
+  }else if(hideState==="exitOpening"){
+    hideAmount=Math.min(1,hideAmount+speed);
+    if(hideAmount>=1)hideState="exitClosing";
+  }else if(hideState==="exitClosing"){
+    hideAmount=Math.max(0,hideAmount-speed);
+    if(hideAmount<=0)hideState="out";
+  }
+}
+
+function collectLoot(){
+  if(!alive||paused()||transition||hideState!=="out")return;
+  if(!loot.length){
+    say("Nothing left to loot.",1);
+    return;
+  }
+  const total=loot.reduce((sum,item)=>sum+item.value,0);
+  coins+=total;
+  loot=[];
+  say("+"+total+" coin"+(total===1?"":"s"));
+  save();
+}
+
+function playCall(type){
+  try{
+    const Audio=window.AudioContext||window.webkitAudioContext;
+    if(!Audio)return;
+
+    audioCtx??=new Audio();
+    audioCtx.resume().catch(()=>{});
+
+    const now=audioCtx.currentTime;
+    const oscillator=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.type=type==="Shadow"?"sawtooth":"sine";
+    oscillator.frequency.setValueAtTime(type==="Shadow"?100:740,now);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      type==="Shadow"?35:260,now+1.3
+    );
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.08,now+.1);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+1.5);
+
+    oscillator.start(now);
+    oscillator.stop(now+1.6);
+    oscillator.onended=()=>{
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  }catch{}
+}
+
+function updateEntity(dt){
+  if(!entity)return;
+  const e=entity;
+  e.timer-=dt;
+
+  if(e.phase==="waiting"){
+    if(e.timer<=0){
+      e.phase="warning";
+      e.timer=e.type==="Shadow"?3:3.6;
+      e.autoTimer=0;
+      autoDoorTimer=0;
+      playCall(e.type);
+      say(
+        e.type==="Shadow"
+          ?"SHADOW APPROACHES — E TO HIDE!"
+          :"WATCHER APPROACHES — E TO HIDE!",
+        3
+      );
+    }
+    return;
+  }
+
+  if(e.phase==="warning"){
+    e.autoTimer+=dt;
+    if(activeUpgrade("autoHide")&&hideState==="out"&&
+       e.autoTimer>=hideReaction()){
+      hide();
+      say("AUTO-HIDE ACTIVATED",1.5);
+    }
+    if(e.timer<=0){
+      e.phase="attack";
+      e.timer=1.1;
+    }
+    return;
+  }
+
+  if(e.phase==="attack"){
+    // Only a completely closed locker protects the player.
+    if(e.timer<=0){
+      if(hideState==="hidden"||invincible){
+        e.phase="passing";
+        e.timer=2.2;
+        say(
+          invincible&&hideState!=="hidden"
+            ?"Invincibility blocked the attack."
+            :"Stay hidden...",
+          2
+        );
+      }else{
+        die(e.type+" caught you outside the locker.");
+      }
+    }
+    return;
+  }
+
+  if(e.phase==="passing"){
+    if(hideState!=="hidden"&&!invincible){
+      die(e.type+" caught you leaving too soon.");
+      return;
+    }
+    if(e.timer<=0){
+      entity=null;
+      autoDoorTimer=0;
+      resetEncounterTimer();
+      say("The footsteps fade. It is safe to leave.",2.5);
+    }
+  }
+}
+
+function updateRandomEncounters(dt){
+  if(!randomEncounters||entity)return;
+
+  encounterTimer-=dt;
+  if(encounterTimer<=0){
+    makeEntity();
+    resetEncounterTimer();
+  }
+}
+
+function die(reason){
+  if(!alive)return;
+  alive=false;
+  deathTimer=3;
+  transition=null;
+
+  $("shop").classList.remove("open");
+  $("dev").classList.remove("open");
+  $("deathReason").textContent=reason;
+  $("deathRoom").textContent="Room "+roomLabel()+" · "+names[roomType];
+  $("respawnText").textContent="Press any key, or respawn in 3 seconds.";
+  $("death").classList.add("open");
+  save();
+}
+
+function respawn(){
+  if(alive)return;
+  room=0;
+  alive=true;
+  charge=100;
+  entity=null;
+  transition=null;
+  $("death").classList.remove("open");
+  enterRoom();
+  say("New expedition. Coins and upgrades kept.",3);
+}
+
+function toggleShop(){
+  if(!alive||transition||$("dev").classList.contains("open"))return;
+  const opening=!$("shop").classList.contains("open");
+  $("shop").classList.toggle("open",opening);
+  if(opening)renderShop();
+}
+
+function renderShop(){
+  $("wallet").textContent=
+    "Coins: "+coins+" · Flashlight: "+Math.floor(charge)+"%";
+  $("shopItems").replaceChildren();
+
+  for(const key of Object.keys(upgradeDefs)){
+    const def=upgradeDefs[key];
+    const row=document.createElement("div");
+    row.className="row";
+
+    const icon=document.createElement("img");
+    icon.src=def.icon;
+    icon.alt="";
+    icon.onerror=()=>{icon.style.visibility="hidden"};
+
+    const info=document.createElement("div");
+    info.className="info";
+
+    const title=document.createElement("span");
+    title.textContent=def.name+" Lv."+upgrades[key];
+
+    const description=document.createElement("small");
+    let extra="";
+    if(key==="autoDoor"&&upgrades[key]){
+      extra=" Wait: "+doorWait().toFixed(2)+"s.";
+    }
+    if(key==="autoHide"&&upgrades[key]){
+      extra=" Reaction: "+hideReaction().toFixed(2)+"s.";
+    }
+    if(key==="autoLoot"&&upgrades[key]){
+      extra=" Delay: "+lootWait().toFixed(2)+"s.";
+    }
+
+    description.textContent=def.description+extra;
+    info.append(title,description);
+
+    const button=document.createElement("button");
+    const maxed=upgrades[key]>=MAX_LEVEL;
+    button.textContent=maxed?"MAX":price(key)+" coins";
+    button.disabled=maxed||coins<price(key);
+    button.onclick=()=>{
+      if(upgrades[key]>=MAX_LEVEL||coins<price(key))return;
+      coins-=price(key);
+      upgrades[key]++;
+      save();
+      renderShop();
+    };
+
+    row.append(icon,info,button);
+    $("shopItems").append(row);
+  }
+
+  for(const [key,id] of [
+    ["autoDoor","toggleAD"],
+    ["autoHide","toggleAH"],
+    ["autoLoot","toggleAL"]
+  ]){
+    $(id).textContent=
+      upgradeDefs[key].name+": "+(enabled[key]?"ON":"OFF");
+  }
+}
+
+for(const [key,id] of [
+  ["autoDoor","toggleAD"],
+  ["autoHide","toggleAH"],
+  ["autoLoot","toggleAL"]
+]){
+  $(id).onclick=()=>{
+    enabled[key]=!enabled[key];
+    save();
+    renderShop();
+  };
+}
+
+$("closeShop").onclick=toggleShop;
+$("shop").onclick=e=>{
+  if(e.target===$("shop"))toggleShop();
+};
+$("restart").onclick=respawn;
+
+function refreshDev(){
+  $("godMode").checked=invincible;
+  $("encounters").checked=randomEncounters;
+  $("devStats").textContent=
+    "Room: "+roomLabel()+" / "+names[roomType]+
+    "\nBackground: "+background+
+    "\nEntity: "+(entity?entity.type+" / "+entity.phase:"none")+
+    "\nRoom encounter chance: "+
+      Math.round(ENTITY_SETTINGS.roomChance*100)+"%"+
+    "\nNext repeat encounter: "+
+      (entity?"after current encounter":Math.ceil(encounterTimer)+"s")+
+    "\nFlashlight: "+Math.floor(charge)+"%"+
+    "\nUpgrades: AD "+upgrades.autoDoor+
+    " | AH "+upgrades.autoHide+" | AL "+upgrades.autoLoot;
+}
+
+function toggleDev(){
+  if(!alive)return;
+  $("shop").classList.remove("open");
+  const opening=!$("dev").classList.contains("open");
+  $("dev").classList.toggle("open",opening);
+  if(opening){
+    $("devRoom").value=room;
+    refreshDev();
+  }else{
+    document.activeElement?.blur();
+    save();
+  }
+}
+
+$("closeDev").onclick=toggleDev;
+
+$("jumpRoom").onclick=()=>{
+  room=clamp(Math.floor(number($("devRoom").value)),0,999999);
+  transition=null;
+  enterRoom();
+  refreshDev();
+};
+
+$("giveCoins").onclick=()=>{
+  coins=Math.min(1e12,coins+1000);
+  save();
+  refreshDev();
+};
+
+$("giveUpgrades").onclick=()=>{
+  for(const key of Object.keys(upgrades)){
+    upgrades[key]=Math.min(MAX_LEVEL,upgrades[key]+1);
+  }
+  save();
+  refreshDev();
+};
+
+$("recharge").onclick=()=>{
+  charge=100;
+  save();
+  refreshDev();
+};
+
+$("clearEntity").onclick=()=>{
+  entity=null;
+  autoDoorTimer=0;
+  resetEncounterTimer();
+  refreshDev();
+};
+
+$("toggleDark").onclick=()=>{
+  dark=!dark;
+  refreshDev();
+};
+
+$("spawnLoot").onclick=()=>{
+  loot.push({x:105,y:132,value:5},{x:225,y:130,value:5});
+  refreshDev();
+};
+
+for(const button of document.querySelectorAll("[data-spawn]")){
+  button.onclick=()=>{
+    transition=null;
+    makeEntity(button.dataset.spawn);
+    entity.timer=.3;
+    refreshDev();
+  };
+}
+
+$("godMode").onchange=e=>{
+  invincible=e.target.checked;
+  refreshDev();
+};
+
+$("encounters").onchange=e=>{
+  randomEncounters=e.target.checked;
+  resetEncounterTimer();
+  refreshDev();
+};
+
+$("resetSave").onclick=()=>{
+  if(!confirm("Reset room, coins, upgrades, and flashlight charge?"))return;
+  room=0;
+  coins=0;
+  charge=100;
+  for(const key of Object.keys(upgrades)){
+    upgrades[key]=0;
+    enabled[key]=true;
+  }
+  transition=null;
+  enterRoom();
+  refreshDev();
+};
+
+async function fullscreen(){
+  try{
+    if(document.fullscreenElement){
+      await document.exitFullscreen();
+    }else{
+      await document.documentElement.requestFullscreen();
+    }
+  }catch{
+    say("Fullscreen is unavailable.",2);
+  }
+}
+
+function action(name){
+  if(!alive){
+    respawn();
+    return;
+  }
+  if(name==="fullscreen"){
+    fullscreen();
+    return;
+  }
+  if(name==="shop"){
+    toggleShop();
+    return;
+  }
+  if(paused())return;
+
+  if(name==="forward"){
+    if(hideState!=="out")say("Leave the locker first.",1);
+    else openDoor();
+  }
+  if(name==="loot")collectLoot();
+  if(name==="hide")hide();
+}
+
+for(const button of document.querySelectorAll("[data-action]")){
+  button.onclick=()=>action(button.dataset.action);
+}
+
+window.addEventListener("keydown",e=>{
+  if(!alive){
+    e.preventDefault();
+    respawn();
+    return;
+  }
+
+  const key=e.key.toLowerCase();
+  const typing=e.target instanceof HTMLInputElement||
+               e.target instanceof HTMLTextAreaElement;
+
+  if(e.code==="BracketLeft"&&!typing){
+    e.preventDefault();
+    if(e.repeat)return;
+    const now=performance.now();
+    bracketCount=now-bracketTime<1800?bracketCount+1:1;
+    bracketTime=now;
+    if(bracketCount>=3){
+      bracketCount=0;
+      toggleDev();
+    }
+    return;
+  }
+
+  if(key==="escape"){
+    if($("dev").classList.contains("open"))toggleDev();
+    else if($("shop").classList.contains("open"))toggleShop();
+    return;
+  }
+
+  if(typing||e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.repeat)return;
+
+  const controls={
+    w:"forward",q:"loot",e:"hide",r:"shop",f:"fullscreen"
+  };
+
+  if(controls[key]){
+    e.preventDefault();
+    action(controls[key]);
+  }
+});
+
+function scenePoint(e){
+  const r=canvas.getBoundingClientRect();
+  const scale=Math.min(r.width/W,r.height/H);
+  return{
+    x:(e.clientX-r.left-(r.width-W*scale)/2)/scale,
+    y:(e.clientY-r.top-(r.height-H*scale)/2)/scale
+  };
+}
+
+canvas.addEventListener("pointerdown",e=>{
+  if(!alive){
+    respawn();
+    return;
+  }
+  if(paused()||transition)return;
+
+  const p=scenePoint(e);
+  if(p.x<0||p.x>W||p.y<0||p.y>H)return;
+
+  if(hideState==="hidden"){
+    hide();
+    return;
+  }
+  if(hideState!=="out")return;
+
+  if(inside(p,LAYOUT.locker)){
+    hide();
+    return;
+  }
+  if(inside(p,LAYOUT.door)){
+    openDoor();
+    return;
+  }
+  if(
+    inside(p,LAYOUT.drawer)||
+    loot.some(item=>Math.hypot(p.x-item.x,p.y-item.y)<14)
+  ){
+    collectLoot();
+  }
+});
+
+function drawStatic(c){
+  const amount=dark?150:38;
+  c.save();
+
+  for(let i=0;i<amount;i++){
+    const x=randomInt(W);
+    const y=randomInt(H);
+    const alpha=Math.random()*(dark?.30:.12);
+    const width=Math.random()<.7?1:2;
+    rect(c,x,y,width,1,"rgba(220,220,220,"+alpha+")");
+  }
+
+  if(dark){
+    for(let i=0;i<3;i++){
+      rect(c,0,randomInt(H),W,1,"rgba(180,170,150,.08)");
+    }
+  }
+  c.restore();
+}
+
+function drawRoom(){
+  g.imageSmoothingEnabled=false;
+  rect(g,0,0,W,H,"#211b17");
+
+  if(imageReady(background)){
+    sprite(g,background,0,0,W,H);
+  }else{
+    rect(g,0,0,W,140,"#3b3027");
+    rect(g,0,140,W,40,"#211914");
+    for(let x=0;x<W;x+=32){
+      rect(g,x,0,1,140,"#231c17");
+    }
+    text(g,names[roomType],219,32,8,"#a08b70");
+  }
+
+  const p=LAYOUT.painting;
+  sprite(g,painting,p.x,p.y,p.w,p.h,"#33271e");
+
+  const d=LAYOUT.drawer;
+  sprite(g,"DRAWER.png",d.x,d.y,d.w,d.h,"#604630");
+
+  const door=LAYOUT.door;
+  let frame=1;
+  if(transition&&!transition.swapped){
+    frame=Math.min(4,1+Math.floor(transition.time/.125));
+  }
+
+  sprite(
+    g,"DOOR_F"+frame+".png",
+    door.x,door.y,door.w,door.h,"#50331e"
+  );
+
+  if(!imageReady("DOOR_F"+frame+".png")){
+    rect(g,door.x+7,door.y+7,door.w-14,door.h-7,"#302014");
+    rect(g,door.x+door.w-18,door.y+65,3,6,"#d0a369");
+  }
+
+  if(!transition||transition.swapped||frame===1){
+    text(g,roomLabel(),door.x+34,door.y+25,8,"#f5d5a3");
+  }
+
+  const locker=LAYOUT.locker;
+  sprite(
+    g,"LOCKER.png",
+    locker.x,locker.y,locker.w,locker.h,"#171c19"
+  );
+
+  const insideLocker=[
+    "enterClosing","hidden","exitOpening"
+  ].includes(hideState);
+
+  if(entity&&["attack","passing"].includes(entity.phase)&&!insideLocker){
+    const e=LAYOUT.entity;
+    const file=entity.type==="Shadow"?"ENTITY1.png":"ENTITY2.png";
+    const bob=Math.sin(performance.now()/140)*2;
+    sprite(g,file,e.x,e.y+bob,e.w,e.h,"#020202");
+
+    if(!imageReady(file)){
+      const eyeColor=entity.type==="Shadow"?"#f33":"#bce8dd";
+      rect(g,e.x+29,e.y+30,10,5,eyeColor);
+      rect(g,e.x+77,e.y+30,10,5,eyeColor);
+    }
+  }
+
+  for(const item of loot){
+    sprite(g,"COIN.png",item.x,item.y,9,9,"#e7b43e");
+    if(item.value>1){
+      text(g,"x"+item.value,item.x-1,item.y-3,6);
+    }
+  }
+
+  if(dark){
+    if(charge>0){
+      const light=g.createRadialGradient(166,93,12,166,93,161);
+      light.addColorStop(0,"rgba(0,0,0,0)");
+      light.addColorStop(.45,"rgba(0,0,0,.22)");
+      light.addColorStop(1,"rgba(0,0,0,.94)");
+      g.fillStyle=light;
+      g.fillRect(0,0,W,H);
+
+      if(hideState==="out"){
+        const f=LAYOUT.flashlight;
+        sprite(g,"FLASHLIGHT.png",f.x,f.y,f.w,f.h,null);
+      }
+    }else{
+      rect(g,0,0,W,H,"rgba(0,0,0,.89)");
+    }
+  }
+
+  if(insideLocker){
+    rect(g,0,0,W,H,"rgba(0,0,0,.76)");
+  }
+
+  const ld=LAYOUT.lockerDoor;
+  const doorWidth=Math.max(2,ld.w*(1-hideAmount*.94));
+  sprite(
+    g,"LOCKER_DOOR.png",
+    ld.x,ld.y,doorWidth,ld.h,"#4e5750"
+  );
+
+  if(!imageReady("LOCKER_DOOR.png")&&doorWidth>15){
+    for(let y=ld.y+15;y<ld.y+44;y+=6){
+      rect(g,ld.x+doorWidth*.25,y,doorWidth*.5,2,"#1a211c");
+    }
+  }
+
+  if(hideState==="hidden"){
+    rect(g,100,48,120,75,"rgba(0,0,0,.85)");
+    for(let y=62;y<108;y+=12){
+      rect(g,110,y,100,3,"#455045");
+    }
+    text(g,"HIDING — E TO LEAVE",105,139,7,"#c9d9c8");
+  }
+
+  drawStatic(g);
+
+  const vignette=g.createRadialGradient(160,90,45,160,90,190);
+  vignette.addColorStop(0,"rgba(0,0,0,0)");
+  vignette.addColorStop(1,"rgba(0,0,0,.55)");
+  g.fillStyle=vignette;
+  g.fillRect(0,0,W,H);
+
+  rect(g,6,157,308,18,"rgba(0,0,0,.75)");
+  sprite(g,"FLASHLIGHT_ICON.png",11,160,12,12,"#b8ad84");
+  text(g,Math.floor(charge)+"%",27,169,7);
+  text(
+    g,
+    dark?(charge>0?"LIGHT ON":"LIGHT EMPTY"):"RECHARGING",
+    58,169,6
+  );
+
+  let x=175;
+  for(const [key,file] of [
+    ["autoDoor","AD_ICON.png"],
+    ["autoHide","AH_ICON.png"],
+    ["autoLoot","AL_ICON.png"]
+  ]){
+    g.globalAlpha=activeUpgrade(key)?1:.35;
+    sprite(g,file,x,160,11,11,"#a68b65");
+    text(g,String(upgrades[key]),x+13,169,7);
+    x+=43;
+  }
+
+  g.globalAlpha=1;
+  text(g,names[roomType],7,14,7);
+}
+
+function drawScreen(){
+  drawRoom();
+
+  const width=canvas.width,height=canvas.height;
+  const scale=Math.min(width/W,height/H);
+  const ox=(width-W*scale)/2;
+  const oy=(height-H*scale)/2;
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.globalAlpha=1;
+  ctx.imageSmoothingEnabled=false;
+  rect(ctx,0,0,width,height,"#030404");
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ox,oy,W*scale,H*scale);
+  ctx.clip();
+  ctx.translate(ox,oy);
+  ctx.scale(scale,scale);
+
+  let zoom=1,black=0;
+
+  if(transition){
+    const t=transition.time;
+    if(!transition.swapped){
+      const travel=clamp((t-.5)/.65,0,1);
+      const eased=travel*travel*(3-2*travel);
+      zoom=1+eased*1.8;
+      black=clamp((t-.78)/.37,0,1);
+    }else{
+      const reveal=clamp((t-1.15)/.5,0,1);
+      black=1-reveal;
+      zoom=1+(1-reveal)*.08;
+    }
+  }
+
+  ctx.save();
+  ctx.translate(168,92);
+  ctx.scale(zoom,zoom);
+  ctx.translate(-168,-92);
+  ctx.drawImage(scene,0,0);
+  ctx.restore();
+
+  if(black>0){
+    rect(ctx,0,0,W,H,"rgba(0,0,0,"+black+")");
+  }
+  ctx.restore();
+
+  $("roomNo").textContent=roomLabel();
+  $("walletTop").textContent="$"+coins;
+}
+
+function update(dt){
+  if(!alive){
+    deathTimer=Math.max(0,deathTimer-dt);
+    $("respawnText").textContent=
+      "Press any key, or respawn in "+Math.ceil(deathTimer)+" seconds.";
+    if(deathTimer<=0)respawn();
+    return;
+  }
+
+  if(paused())return;
+
+  if(messageTimer>0){
+    messageTimer-=dt;
+    if(messageTimer<=0)$("status").textContent="";
+  }
+
+  if(transition){
+    const travel=transition;
+    travel.time+=dt;
+
+    if(!travel.swapped&&travel.time>=1.15){
+      travel.swapped=true;
+      room=Math.min(999999,room+1);
+      enterRoom();
+      say("",0);
+    }
+
+    if(travel.time>=1.65)transition=null;
+    return;
+  }
+
+  roomAge+=dt;
+  cooldown=Math.max(0,cooldown-dt);
+
+  if(dark&&hideState==="out"){
+    charge=Math.max(0,charge-dt*1.8);
+  }else if(!dark){
+    charge=Math.min(100,charge+dt*5);
+  }
+
+  updateLocker(dt);
+  // Count down only while no entity is active.
+  updateRandomEncounters(dt);
+  updateEntity(dt);
+  if(!alive)return;
+
+  if(
+    activeUpgrade("autoLoot")&&
+    loot.length&&
+    roomAge>=lootWait()&&
+    hideState==="out"
+  ){
+    collectLoot();
+  }
+
+  if(activeUpgrade("autoDoor")&&hideState==="out"){
+    const danger=entity&&entity.phase!=="waiting";
+
+    if(!danger){
+      autoDoorTimer+=dt;
+      if(autoDoorTimer>=doorWait())openDoor();
+    }else{
+      autoDoorTimer=0;
+    }
+  }
+}
+
+let saveTimer=0;
+
+function loop(now){
+  const dt=last?Math.min((now-last)/1000,.05):0;
+  last=now;
+
+  update(dt);
+  drawScreen();
+
+  saveTimer+=dt;
+  if(saveTimer>=5){
+    saveTimer=0;
+    save();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    save();
+    last=0;
+  }
+});
+
+window.addEventListener("pagehide",save);
+
+enterRoom();
+resize();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
