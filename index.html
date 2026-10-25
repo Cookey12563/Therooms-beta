@@ -400,7 +400,43 @@ function makeEntity(type){
   };
   autoDoorTimer=0;
 }
+// LESS FREQUENT ENCOUNTERS — ONLY AFTER OPENING A DOOR
+// 30% chance per door, followed by a 4–7 second wait.
+// The original hiding warning times stay unchanged.
 
+ENTITY_SETTINGS.roomChance = 0.30;
+ENTITY_SETTINGS.initialWaitMin = 4;
+ENTITY_SETTINGS.initialWaitMax = 7;
+
+// Disable repeat encounters while staying in the same room.
+updateRandomEncounters = function () {};
+
+// Keep the original room setup, but control when it may spawn an entity.
+const originalEnterRoom = enterRoom;
+
+enterRoom = function () {
+  // A door transition sets "swapped" when it installs the next room.
+  // Starting, respawning, and developer room jumps do not count.
+  const enteredThroughDoor = Boolean(transition && transition.swapped);
+  const encountersEnabled = randomEncounters;
+
+  // Prevent the original room setup from spawning an entity.
+  randomEncounters = false;
+  try {
+    originalEnterRoom();
+  } finally {
+    randomEncounters = encountersEnabled;
+  }
+
+  // Roll once, only after traveling through a door.
+  if (
+    enteredThroughDoor &&
+    encountersEnabled &&
+    Math.random() < ENTITY_SETTINGS.roomChance
+  ) {
+    makeEntity();
+  }
+};
 function enterRoom(){
   roomType=pick(["hotel","hotel","hallway","archive","garden","stairs","backroom"]);
   background=pick(roomSets[roomType]);
